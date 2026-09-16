@@ -1,32 +1,12 @@
-"""Tests for landmark-derived coordinate frames.
-
-Imports the module directly (not via the femguide_core package root, which
-pulls in the other geometry layers).
-"""
+"""Tests for landmark-derived coordinate frames."""
 
 import numpy as np
 import pytest
 
-try:
-    from femguide_core.geometry.frames import (
-        frame_from_origin_and_axes,
-        frame_from_three_points,
-    )
-except ImportError:
-    # The geometry package __init__ imports the other layers, which may not
-    # exist yet during parallel development. Load frames.py directly.
-    import importlib.util
-    from pathlib import Path
-
-    _path = (
-        Path(__file__).resolve().parents[1]
-        / "core" / "femguide_core" / "geometry" / "frames.py"
-    )
-    _spec = importlib.util.spec_from_file_location("_fg_frames", _path)
-    _mod = importlib.util.module_from_spec(_spec)
-    _spec.loader.exec_module(_mod)
-    frame_from_origin_and_axes = _mod.frame_from_origin_and_axes
-    frame_from_three_points = _mod.frame_from_three_points
+from femguide_core.geometry.frames import (
+    frame_from_origin_and_axes,
+    frame_from_three_points,
+)
 
 
 def _check_frame(frame, origin):

@@ -1,46 +1,20 @@
-"""Tests for geometry layer 1 primitives.
-
-Imports the module directly (not via the femguide_core package root, which
-pulls in the other geometry layers).
-"""
+"""Tests for geometry layer 1 primitives."""
 
 import math
 
 import numpy as np
 import pytest
 
-try:
-    from femguide_core.geometry.primitives import (
-        safe_normalize,
-        polyline_from_angles,
-        polyline_plane_normal,
-        segment_prism,
-        polyline_prism_solids,
-        offset_prism,
-        oriented_cylinder,
-        paired_cylinders,
-    )
-except ImportError:
-    # The geometry package __init__ imports the other layers, which may not
-    # exist yet during parallel development. Load primitives.py directly.
-    import importlib.util
-    from pathlib import Path
-
-    _path = (
-        Path(__file__).resolve().parents[1]
-        / "core" / "femguide_core" / "geometry" / "primitives.py"
-    )
-    _spec = importlib.util.spec_from_file_location("_fg_primitives", _path)
-    _mod = importlib.util.module_from_spec(_spec)
-    _spec.loader.exec_module(_mod)
-    safe_normalize = _mod.safe_normalize
-    polyline_from_angles = _mod.polyline_from_angles
-    polyline_plane_normal = _mod.polyline_plane_normal
-    segment_prism = _mod.segment_prism
-    polyline_prism_solids = _mod.polyline_prism_solids
-    offset_prism = _mod.offset_prism
-    oriented_cylinder = _mod.oriented_cylinder
-    paired_cylinders = _mod.paired_cylinders
+from femguide_core.geometry.primitives import (
+    safe_normalize,
+    polyline_from_angles,
+    polyline_plane_normal,
+    segment_prism,
+    polyline_prism_solids,
+    offset_prism,
+    oriented_cylinder,
+    paired_cylinders,
+)
 
 
 def _assert_solid(mesh):

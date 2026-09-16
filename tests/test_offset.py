@@ -1,35 +1,8 @@
 """Layer-2 surface offset tests."""
 
-import importlib
-import sys
-import types
-
 import numpy as np
 import pytest
 import trimesh
-
-
-def _import_layer2(name):
-    """Import a layer-2 module, stubbing still-missing sibling modules.
-
-    The geometry package __init__ imports layer-1/3 siblings that are being
-    written concurrently with this suite; any that do not exist yet get an
-    empty stand-in so layer 2 imports on its own. No-op once they all exist.
-    """
-    for _ in range(16):
-        try:
-            return importlib.import_module(name)
-        except ModuleNotFoundError as exc:
-            missing = exc.name or ""
-            if not missing.startswith("femguide_core."):
-                raise
-            stub = types.ModuleType(missing)
-            stub.__getattr__ = lambda attr: None
-            sys.modules[missing] = stub
-    raise ImportError(name)
-
-
-_import_layer2("femguide_core.geometry.offset")
 
 from femguide_core.geometry.booleans import NonManifoldError
 from femguide_core.geometry.offset import offset_solid
