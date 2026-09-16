@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "femguide-core"
+version = "0.1.0"
+description = "Pure-Python geometry engine for the FemGuide Suite (no Slicer imports)"
+requires-python = ">=3.9"
+dependencies = [
+    "numpy>=1.24",
+    "trimesh>=4.0",
+    "manifold3d>=2.5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["femguide_core*"]
+
+[tool.pytest.ini_options]
+testpaths = ["../tests"]
