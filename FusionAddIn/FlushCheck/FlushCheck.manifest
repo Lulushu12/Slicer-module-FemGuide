@@ -1,0 +1,12 @@
+{
+    "autodeskProduct": "Fusion360",
+    "type": "addin",
+    "author": "Radu Josanu",
+    "description": {
+        "": "Verifies that the FemGuide base is flush with the bone body after a Combine Cut. Samples the base faces, measures the exact distance to the bone, and highlights contact, gap, and penetration points in the viewport."
+    },
+    "version": "0.1.0",
+    "runOnStartup": true,
+    "supportedOS": "windows|mac",
+    "editEnabled": true
+}
