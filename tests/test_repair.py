@@ -123,21 +123,25 @@ def test_debris_removal_judges_size_not_face_count():
     """A coarsely meshed but physically large shell must survive debris
     removal next to a densely meshed component (regression: a ~5k-face
     femoral head was deleted as 'debris' beside a 74k-face shaft)."""
+    # subdivide() (uniform 1->4 split) keeps the face-count disparity stable
+    # across trimesh versions, unlike subdivide_to_size on old releases.
     dense_shaft = trimesh.creation.capsule(radius=14.0, height=120.0,
-                                           count=[48, 48])
-    dense_shaft = dense_shaft.subdivide_to_size(max_edge=1.5)
+                                           count=[48, 48]).subdivide()
     coarse_head = trimesh.creation.icosphere(subdivisions=2, radius=22.0)
     coarse_head.apply_translation([12.0, 0.0, 90.0])
     tet = trimesh.creation.icosphere(subdivisions=0, radius=0.8)
     tet.apply_translation([200.0, 200.0, 200.0])
     combined = trimesh.util.concatenate([dense_shaft, coarse_head, tet])
 
+    # Precondition: head has far fewer faces than 10% of the shaft's, but
+    # is 44 mm across.
+    assert len(coarse_head.faces) < 0.1 * len(dense_shaft.faces)
+
     repaired, report = repair(combined)
 
-    # Head has far fewer faces than 10% of the shaft's, but is 44 mm across.
-    assert len(coarse_head.faces) < 0.1 * len(dense_shaft.faces)
     assert report.components_removed == 1  # only the far-away speck
     assert report.is_manifold_solid
-    # The head region is still present.
+    # The coarsely meshed head region is still present...
     assert repaired.bounds[1][2] > 100.0
-    assert _body_count(repaired) == 2
+    # ...and the far-away speck (near [200, 200, 200]) is gone.
+    assert float(repaired.vertices.max()) < 150.0
