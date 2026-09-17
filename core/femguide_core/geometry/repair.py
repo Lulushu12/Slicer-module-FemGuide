@@ -212,10 +212,25 @@ def _basic_cleanup(mesh: trimesh.Trimesh) -> None:
     mesh.remove_unreferenced_vertices()
 
 
-# Debris components smaller than this fraction of the largest component's face
-# count (and smaller than _DEBRIS_MIN_FACES) are discarded by repair().
+# Debris components are judged by PHYSICAL size (bounding-box diagonal
+# relative to the largest component's), never by face count: segmentation
+# meshes routinely mix triangle densities, and a coarsely meshed but large
+# anatomical shell (e.g. a femoral head next to a densely meshed shaft) must
+# survive. Components below this fraction of the largest diagonal are debris;
+# components with fewer than _DEBRIS_MIN_FACES faces are always debris.
 _DEBRIS_FRACTION = 0.1
 _DEBRIS_MIN_FACES = 8
+
+
+def _component_diagonals(
+    mesh: trimesh.Trimesh, labels: np.ndarray, n_components: int
+) -> np.ndarray:
+    """Bounding-box diagonal of each face-connectivity component."""
+    diagonals = np.zeros(n_components)
+    for component in range(n_components):
+        verts = mesh.vertices[np.unique(mesh.faces[labels == component])]
+        diagonals[component] = float(np.linalg.norm(verts.max(0) - verts.min(0)))
+    return diagonals
 
 
 def repair(
@@ -231,10 +246,11 @@ def repair(
     2. Merge duplicate vertices; remove degenerate and duplicate faces and
        unreferenced vertices.
     3. If ``keep_largest_component``: discard tiny disconnected debris —
-       components whose face count is below 10% of the largest component's
-       (and below 8 faces are always debris). Comparably sized components are
-       kept, so a bone made of two touching closed shells survives while
-       far-away segmentation specks do not.
+       components whose bounding-box diagonal is below 10% of the largest
+       component's (components with fewer than 8 faces are always debris).
+       Size is judged geometrically, never by face count, so a coarsely
+       meshed but physically large shell (a femoral head next to a densely
+       meshed shaft) survives while far-away segmentation specks do not.
     4. Make triangle winding consistent (``trimesh.repair.fix_winding``).
     5. Fill holes: every closed boundary loop is capped — triangular holes get
        the missing triangle, larger loops a centroid fan — then the cleanup of
@@ -260,8 +276,10 @@ def repair(
         labels, n_components = _face_components(result.faces, len(result.vertices))
         if n_components > 1:
             counts = np.bincount(labels)
-            threshold = max(_DEBRIS_FRACTION * counts.max(), _DEBRIS_MIN_FACES)
-            keep = counts >= threshold
+            diagonals = _component_diagonals(result, labels, n_components)
+            keep = (diagonals >= _DEBRIS_FRACTION * diagonals.max()) & (
+                counts >= _DEBRIS_MIN_FACES
+            )
             removed = int(np.count_nonzero(~keep))
             if removed:
                 result.update_faces(keep[labels])

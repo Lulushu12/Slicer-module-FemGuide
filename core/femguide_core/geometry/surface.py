@@ -153,6 +153,34 @@ def _snap_to_faces(
     grid stays within :data:`_PAIR_BUDGET` pairs.
     """
     out = np.empty_like(points)
+
+    # Batch-level spatial prefilter (matters at 10^4+ faces): a subsample of
+    # centroids gives every point a valid upper bound on its snap distance
+    # (min over a SUBSET of ``dist + radius`` can only overestimate). The
+    # true nearest face of any point must then have its centroid inside the
+    # points' bounding box grown by that bound plus the largest face radius,
+    # so all other faces are discarded before the exact chunked pass.
+    if len(centroids) > 4096:
+        stride = max(1, len(centroids) // 2048)
+        sub_c = centroids[::stride]
+        sub_r = radii[::stride]
+        upper = np.empty(len(points))
+        sub_step = max(1, _PAIR_BUDGET // len(sub_c))
+        for start in range(0, len(points), sub_step):
+            chunk = points[start : start + sub_step]
+            diff = chunk[:, None, :] - sub_c[None, :, :]
+            dist = np.sqrt(np.einsum("pmi,pmi->pm", diff, diff))
+            upper[start : start + sub_step] = (dist + sub_r[None, :]).min(axis=1)
+        margin = float(upper.max()) + float(radii.max())
+        near = np.all(
+            (centroids >= points.min(axis=0) - margin)
+            & (centroids <= points.max(axis=0) + margin),
+            axis=1,
+        )
+        if near.any() and not near.all():
+            a, b, c = a[near], b[near], c[near]
+            centroids, radii = centroids[near], radii[near]
+
     step = max(1, _PAIR_BUDGET // max(1, len(centroids)))
     for start in range(0, len(points), step):
         chunk = points[start : start + step]
@@ -182,6 +210,23 @@ def _barrier_faces(
     """
     a, b, c, centroids, radii = _face_geometry(mesh)
     barrier = np.zeros(len(centroids), dtype=bool)
+
+    # Cheap spatial prefilter: only faces whose centroid lies inside the
+    # curve's bounding box, grown by tolerance + the largest face radius, can
+    # be within tolerance of a sample. A footprint outline covers a small
+    # part of a bone, so this typically discards the vast majority of faces.
+    margin = tolerance + (float(radii.max()) if len(radii) else 0.0)
+    near_box = np.all(
+        (centroids >= samples.min(axis=0) - margin)
+        & (centroids <= samples.max(axis=0) + margin),
+        axis=1,
+    )
+    candidates = np.flatnonzero(near_box)
+    if len(candidates) == 0:
+        return barrier
+    a, b, c = a[candidates], b[candidates], c[candidates]
+    centroids, radii = centroids[candidates], radii[candidates]
+
     step = max(1, _PAIR_BUDGET // max(1, len(centroids)))
     for start in range(0, len(samples), step):
         chunk = samples[start : start + step]
@@ -195,7 +240,7 @@ def _barrier_faces(
             chunk[point_idx], a[tri_idx], b[tri_idx], c[tri_idx]
         )
         hit = exact2 < tolerance * tolerance
-        barrier[tri_idx[hit]] = True
+        barrier[candidates[tri_idx[hit]]] = True
     return barrier
 
 
@@ -482,8 +527,15 @@ def extract_patch(mesh: trimesh.Trimesh, closed_curve_points) -> trimesh.Trimesh
     # otherwise the barrier band could have gaps between samples.
     seg_lengths = np.linalg.norm(np.roll(pts, -1, axis=0) - pts, axis=1)
     max_seg = float(seg_lengths.max()) if len(seg_lengths) else 0.0
-    samples_per_segment = int(min(400, max(10, np.ceil(max_seg / (0.4 * tolerance)))))
-    dense = project_curve_to_surface(mesh, pts, samples_per_segment)
+    if max_seg <= 0.4 * tolerance:
+        # Already dense (e.g. the output of project_curve_to_surface, as in
+        # the molded_base pipeline): use as-is, no redundant re-projection.
+        dense = pts
+    else:
+        samples_per_segment = int(
+            min(400, max(1, np.ceil(max_seg / (0.4 * tolerance))))
+        )
+        dense = project_curve_to_surface(mesh, pts, samples_per_segment)
 
     barrier = _barrier_faces(mesh, dense, tolerance)
     if barrier.all():
