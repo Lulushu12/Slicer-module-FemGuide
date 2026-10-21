@@ -24,10 +24,12 @@ from femguide_core.geometry import difference, molded_base, oriented_cylinder, u
 from femguide.cutting import cutting_solids
 from femguide.plan import FemGuidePlan, Pin
 
-# Pin holes run from slightly inside the bone back out well past any guide
-# material; only their intersection with the guide matters.
-_PIN_INTO_BONE_MM = 2.0
-_PIN_OUT_OF_BONE_MM = 60.0
+# Pin holes run from inside the bone back out well past any guide material;
+# only their intersection with the guide matters. Starting 10 mm deep (not at
+# the surface) keeps the hole open through the whole base even when the entry
+# point sits slightly off the bone surface.
+PIN_INTO_BONE_MM = 10.0
+PIN_OUT_OF_BONE_MM = 60.0
 _PIN_SECTIONS = 32
 
 
@@ -44,6 +46,7 @@ class GuideGeometry:
     pin_holes: List[trimesh.Trimesh]
     pin_directions: List[np.ndarray]
     polyline: np.ndarray
+    placement: np.ndarray
     timings: Dict[str, float] = field(default_factory=dict)
 
     @property
@@ -63,11 +66,16 @@ def resolve_pin_direction(pin: Pin, bone: trimesh.Trimesh) -> np.ndarray:
     return -np.asarray(bone.face_normals[nearest], dtype=float)
 
 
-def pin_hole(pin: Pin, direction: np.ndarray) -> trimesh.Trimesh:
+def pin_hole(pin: Pin, direction: np.ndarray, radius: float = None,
+             into_bone_mm: float = PIN_INTO_BONE_MM) -> trimesh.Trimesh:
+    """Cylinder along the pin axis, from ``into_bone_mm`` inside the bone to
+    well outside the guide. ``radius`` defaults to the pin's own."""
     position = np.array(pin.position, dtype=float)
-    length = _PIN_INTO_BONE_MM + _PIN_OUT_OF_BONE_MM
-    center = position + direction * (_PIN_INTO_BONE_MM - _PIN_OUT_OF_BONE_MM) / 2.0
-    return oriented_cylinder(center, direction, pin.diameter_mm / 2.0, length,
+    length = into_bone_mm + PIN_OUT_OF_BONE_MM
+    center = position + direction * (into_bone_mm - PIN_OUT_OF_BONE_MM) / 2.0
+    if radius is None:
+        radius = pin.diameter_mm / 2.0
+    return oriented_cylinder(center, direction, radius, length,
                              sections=_PIN_SECTIONS)
 
 
@@ -101,4 +109,5 @@ def regenerate(plan: FemGuidePlan, bone: trimesh.Trimesh) -> GuideGeometry:
     return GuideGeometry(
         guide=guide, walls=cutting.walls, slot=cutting.slot, base=base,
         pin_holes=holes, pin_directions=directions, polyline=cutting.polyline,
+        placement=plan.cutting.placement_matrix,
         timings=timings)

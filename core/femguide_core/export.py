@@ -10,7 +10,9 @@ report with the warnings the user acknowledged.
 STL cannot carry metadata, so the record is a sidecar file. Embedding it in
 3MF is a planned follow-up; the record format does not change.
 
-Export refuses to run unless the validation gate passes (section 5.3).
+Export refuses to run unless the validation gate passes (section 5.3). It
+never overwrites an existing export, and the STL and its record appear
+together or not at all (both are written to temporary files first).
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ from __future__ import annotations
 import datetime
 import hashlib
 import json
+import os
 import platform
 from pathlib import Path
 from typing import Any, Dict, Iterable, Mapping, Union
@@ -49,7 +52,7 @@ def mesh_sha256(mesh: trimesh.Trimesh) -> str:
 
 
 def canonical_json(data: Any) -> str:
-    return json.dumps(data, sort_keys=True, separators=(",", ":"))
+    return json.dumps(data, sort_keys=True, separators=(",", ":"), allow_nan=False)
 
 
 def json_sha256(data: Any) -> str:
@@ -82,12 +85,15 @@ def export_traceable(
     bone_sha256: str,
     report: ValidationReport,
     acknowledged: Iterable[str] = (),
+    extra: Mapping[str, Any] = None,
 ) -> Path:
     """Write ``mesh`` as binary STL plus its traceability record.
 
     Raises :class:`ExportBlockedError` (writing nothing) if the report has
-    blocking findings or unacknowledged warnings. Only acknowledgements that
-    match an actual warning are recorded. Returns the record's path.
+    blocking findings or unacknowledged warnings, and ``FileExistsError`` if
+    either output file already exists. Only acknowledgements that match an
+    actual warning are recorded. ``extra`` adds module-specific fields to the
+    record (e.g. the validation limits used). Returns the record's path.
     """
     acknowledged = sorted(set(acknowledged))
     if report.blocks:
@@ -105,8 +111,15 @@ def export_traceable(
     stl_path = Path(stl_path)
     if stl_path.suffix.lower() != ".stl":
         raise ValueError("stl_path must end in .stl")
+    record_path = stl_path.with_suffix(".trace.json")
+    for path in (stl_path, record_path):
+        if path.exists():
+            raise FileExistsError("{} already exists; exports are never "
+                                  "overwritten".format(path))
     stl_path.parent.mkdir(parents=True, exist_ok=True)
-    mesh.export(str(stl_path), file_type="stl")
+    stl_tmp = stl_path.with_name("." + stl_path.name + ".tmp")
+    record_tmp = record_path.with_name("." + record_path.name + ".tmp")
+    stl_tmp.write_bytes(mesh.export(file_type="stl"))
 
     warning_codes = {f.code for f in report.warnings}
     record = {
@@ -119,15 +132,26 @@ def export_traceable(
         "core_version": core_version,
         "dependencies": _dependency_versions(),
         "stl_file": stl_path.name,
-        "stl_sha256": file_sha256(stl_path),
+        "stl_sha256": file_sha256(stl_tmp),
         "bone_sha256": bone_sha256,
         "plan_sha256": json_sha256(dict(plan)),
         "plan": dict(plan),
         "validation": report.to_dict(),
         "acknowledged_warnings": [c for c in acknowledged if c in warning_codes],
     }
-    record_path = stl_path.with_suffix(".trace.json")
-    record_path.write_text(json.dumps(record, indent=2, sort_keys=True))
+    for key, value in dict(extra or {}).items():
+        if key in record:
+            raise ValueError("extra field {!r} would overwrite a record field".format(key))
+        record[key] = value
+    try:
+        record_tmp.write_text(json.dumps(record, indent=2, sort_keys=True,
+                                         allow_nan=False))
+        os.replace(stl_tmp, stl_path)
+        os.replace(record_tmp, record_path)
+    finally:
+        for tmp in (stl_tmp, record_tmp):
+            if tmp.exists():
+                tmp.unlink()
     return record_path
 
 

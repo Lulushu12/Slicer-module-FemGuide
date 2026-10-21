@@ -7,11 +7,12 @@ import numpy as np
 import pytest
 import trimesh
 
-from femguide_core.geometry import intersection, is_manifold_solid, to_manifold
-from femguide.plan import BaseParams
+from femguide_core.geometry import is_manifold_solid, to_manifold
+from femguide.plan import BaseParams, Pin
 from femguide.regenerate import BoneMismatchError, regenerate
 
-from fg_scenario import sphere_point
+from fg_scenario import (blade_path_blocked, sphere_point, translation,
+                         with_base, with_cutting)
 
 
 def test_guide_is_one_closed_solid(plan, bone):
@@ -21,20 +22,29 @@ def test_guide_is_one_closed_solid(plan, bone):
     assert 0 < g.guide.volume < g.material.volume
 
 
-def test_slot_cuts_through_the_base_to_the_bone(plan, bone):
-    g = regenerate(plan, bone)
-    # The slot channel does pass through base material...
-    assert intersection(g.base, g.slot).volume > 1.0
-    # ...and none of the guide is left inside it, so the blade reaches bone.
-    leftover = intersection(g.guide, g.slot)
-    assert len(leftover.faces) == 0 or leftover.volume < 1e-6
+def test_blade_path_is_clear_through_walls_and_base(plan, bone):
+    assert blade_path_blocked(regenerate(plan, bone)) == []
+
+
+def test_blade_path_clear_with_flipped_placement(plan, bone):
+    flip = np.diag([1.0, -1.0, -1.0, 1.0])
+    flip[:3, 3] = [-6.3, 1.0, 26.5]
+    g = regenerate(with_cutting(plan, placement=tuple(flip.ravel())), bone)
+    assert blade_path_blocked(g) == []
+
+
+def test_blade_path_clear_when_base_is_thicker_than_walls(plan, bone):
+    thick = with_base(with_cutting(plan, slot_depth_mm=4.0,
+                                   placement=translation(-6.3, -1.0, 23.5)),
+                      thickness_mm=8.0)
+    assert blade_path_blocked(regenerate(thick, bone)) == []
 
 
 def test_auto_pin_direction_is_inward_normal(plan, bone):
-    g = regenerate(plan, bone)
-    for pin, direction in zip(plan.pins, g.pin_directions):
-        inward = -np.array(pin.position) / np.linalg.norm(pin.position)
-        assert np.dot(direction, inward) > 0.99
+    auto = dataclasses.replace(plan, pins=(Pin(position=sphere_point(20.0, np.pi / 2)),))
+    g = regenerate(auto, bone)
+    inward = -np.array(auto.pins[0].position) / np.linalg.norm(auto.pins[0].position)
+    assert np.dot(g.pin_directions[0], inward) > 0.99
 
 
 def test_pins_survive_a_base_outline_edit(plan, bone):

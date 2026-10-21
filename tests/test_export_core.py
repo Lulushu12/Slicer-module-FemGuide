@@ -75,3 +75,22 @@ def test_mesh_sha256_detects_any_change():
     assert mesh_sha256(a) == mesh_sha256(b)
     b.vertices[0] += 1e-9
     assert mesh_sha256(a) != mesh_sha256(b)
+
+
+def test_existing_files_are_never_overwritten(tmp_path):
+    _export(tmp_path, ValidationReport())
+    with pytest.raises(FileExistsError):
+        _export(tmp_path, ValidationReport())
+
+
+def test_extra_fields_recorded_but_cannot_override(tmp_path):
+    def run(extra, name):
+        return export_traceable(
+            trimesh.creation.box(), tmp_path / name, plan=PLAN, module="t",
+            module_version="1", case_id="C1", bone_sha256="abc",
+            report=ValidationReport(), extra=extra)
+    record = load_trace(run({"validation_limits": {"min": 1.0}}, "a.stl"))
+    assert record["validation_limits"] == {"min": 1.0}
+    with pytest.raises(ValueError):
+        run({"case_id": "forged"}, "b.stl")
+    assert not (tmp_path / "b.stl").exists()

@@ -37,20 +37,32 @@ IDENTITY: Tuple[float, ...] = (
 )
 
 
-def _floats(values) -> Tuple[float, ...]:
-    return tuple(float(v) for v in values)
+def _floats(values, name: str = "value") -> Tuple[float, ...]:
+    out = []
+    for v in values:
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            raise ValueError("{} must contain numbers (got {!r})".format(name, v))
+        f = float(v)
+        if not math.isfinite(f):
+            raise ValueError("{} must contain finite numbers (got {})".format(name, f))
+        out.append(f)
+    return tuple(out)
 
 
 def _vec3(value, name: str) -> Vec3:
-    out = _floats(value)
-    if len(out) != 3 or not all(math.isfinite(v) for v in out):
-        raise ValueError("{} must be three finite numbers".format(name))
+    out = _floats(value, name)
+    if len(out) != 3:
+        raise ValueError("{} must be three numbers".format(name))
     return out  # type: ignore[return-value]
 
 
-def _positive(value: float, name: str) -> float:
-    value = float(value)
-    if not (math.isfinite(value) and value > 0.0):
+def _number(value, name: str) -> float:
+    return _floats((value,), name)[0]
+
+
+def _positive(value, name: str) -> float:
+    value = _number(value, name)
+    if value <= 0.0:
         raise ValueError("{} must be > 0 (got {})".format(name, value))
     return value
 
@@ -61,11 +73,10 @@ class CuttingParams:
 
     The polyline (``angles_deg`` / ``lengths_mm``, prototype math) is the
     planned cut line, drawn in its local z=0 plane; each segment defines one
-    cut plane (the segment swept along local z). Local -z points toward the
-    bone: the blade advances along -z. The **slot** is the empty
-    channel the blade passes through: ``blade_thickness_mm +
-    blade_clearance_mm`` wide, centred on the cut line, open through the
-    guide and down to the bone along local z. ``slot_depth_mm`` is
+    cut plane (the segment swept along local z, the blade's direction of
+    travel). The **slot** is the empty channel the blade passes through:
+    ``blade_thickness_mm + blade_clearance_mm`` wide, centred on the cut
+    line, open along the blade's entire path. ``slot_depth_mm`` is
     how far along z the blade is guided (the guide's height there). Walls of
     ``wall_thickness_mm`` surround the slot on both sides and close its two
     outer ends. ``placement`` (row-major 4x4, rigid) maps the local frame
@@ -84,8 +95,8 @@ class CuttingParams:
 
     def __post_init__(self) -> None:
         set_ = object.__setattr__
-        set_(self, "angles_deg", _floats(self.angles_deg))
-        set_(self, "lengths_mm", _floats(self.lengths_mm))
+        set_(self, "angles_deg", _floats(self.angles_deg, "angles_deg"))
+        set_(self, "lengths_mm", _floats(self.lengths_mm, "lengths_mm"))
         n = len(self.angles_deg)
         if n == 0 or n != len(self.lengths_mm):
             raise ValueError(
@@ -93,19 +104,19 @@ class CuttingParams:
         for i, length in enumerate(self.lengths_mm):
             _positive(length, "lengths_mm[{}]".format(i))
         for name in ("start_ext_mm", "end_ext_mm"):
-            ext = _floats(getattr(self, name)) or (0.0,) * n
+            ext = _floats(getattr(self, name), name) or (0.0,) * n
             if len(ext) != n:
                 raise ValueError("{} needs one entry per segment ({})".format(name, n))
-            if any(v < 0.0 or not math.isfinite(v) for v in ext):
+            if any(v < 0.0 for v in ext):
                 raise ValueError("{} entries must be >= 0".format(name))
             set_(self, name, ext)
         for name in ("blade_thickness_mm", "slot_depth_mm", "wall_thickness_mm"):
             set_(self, name, _positive(getattr(self, name), name))
-        clearance = float(self.blade_clearance_mm)
-        if not math.isfinite(clearance) or clearance < 0.0:
+        clearance = _number(self.blade_clearance_mm, "blade_clearance_mm")
+        if clearance < 0.0:
             raise ValueError("blade_clearance_mm must be >= 0")
         set_(self, "blade_clearance_mm", clearance)
-        placement = _floats(self.placement)
+        placement = _floats(self.placement, "placement")
         if len(placement) != 16:
             raise ValueError("placement must be 16 numbers (row-major 4x4)")
         matrix = np.array(placement).reshape(4, 4)
@@ -144,30 +155,26 @@ class BaseParams:
         object.__setattr__(self, "outline_points", pts)
         object.__setattr__(self, "thickness_mm",
                            _positive(self.thickness_mm, "thickness_mm"))
-        clearance = float(self.clearance_mm)
-        if not math.isfinite(clearance):
-            raise ValueError("clearance_mm must be finite")
-        object.__setattr__(self, "clearance_mm", clearance)
+        object.__setattr__(self, "clearance_mm",
+                           _number(self.clearance_mm, "clearance_mm"))
 
 
 @dataclass(frozen=True)
 class Pin:
-    """One fixation pin hole (6.1 item 3).
+    """One fixation pin hole (6.1 item 3): holds the guide still on the bone
+    during the cuts, so it always runs through the guide into the bone.
 
     ``position`` is where the pin enters the bone (a point on the bone
     surface). ``direction`` points into the bone; ``None`` means "auto":
     the inward surface normal at ``position``, recomputed on every
-    regeneration so it follows edits.
-
-    Only through-holes exist so far. Blind holes are in the spec, but which
-    side a blind hole opens to (and what it is used for) is an open question;
-    ``through=False`` is rejected until that is decided.
+    regeneration so it follows edits. An explicit direction is stored as a
+    unit vector; one that already is unit length is kept bit-for-bit so the
+    plan round-trips through JSON exactly.
     """
 
     position: Vec3
     direction: Optional[Vec3] = None
     diameter_mm: float = 2.0
-    through: bool = True
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "position", _vec3(self.position, "position"))
@@ -176,14 +183,11 @@ class Pin:
             norm = math.sqrt(sum(v * v for v in direction))
             if norm < 1e-9:
                 raise ValueError("direction must be non-zero (or None for auto)")
-            object.__setattr__(
-                self, "direction", tuple(v / norm for v in direction))
+            if abs(norm - 1.0) > 1e-12:
+                direction = tuple(v / norm for v in direction)
+            object.__setattr__(self, "direction", direction)
         object.__setattr__(self, "diameter_mm",
                            _positive(self.diameter_mm, "diameter_mm"))
-        if not self.through:
-            raise NotImplementedError(
-                "blind pin holes are not specified yet (open question: which "
-                "side they open to and what they are for)")
 
 
 @dataclass(frozen=True)
@@ -202,12 +206,23 @@ class FemGuidePlan:
     schema_version: int = SCHEMA_VERSION
 
     def __post_init__(self) -> None:
-        if not self.case_id:
-            raise ValueError("case_id must not be empty")
-        if self.schema_version != SCHEMA_VERSION:
+        if not isinstance(self.case_id, str) or not self.case_id.strip():
+            raise ValueError("case_id must be a non-blank string")
+        if (not isinstance(self.bone_sha256, str) or len(self.bone_sha256) != 64
+                or any(ch not in "0123456789abcdef" for ch in self.bone_sha256)):
+            raise ValueError("bone_sha256 must be a 64-character lowercase hex digest")
+        if not isinstance(self.cutting, CuttingParams):
+            raise ValueError("cutting must be CuttingParams")
+        if self.base is not None and not isinstance(self.base, BaseParams):
+            raise ValueError("base must be BaseParams or None")
+        if (type(self.schema_version) is not int
+                or self.schema_version != SCHEMA_VERSION):
             raise ValueError("unsupported plan schema_version {} (expected {})"
                              .format(self.schema_version, SCHEMA_VERSION))
-        object.__setattr__(self, "pins", tuple(self.pins))
+        pins = tuple(self.pins)
+        if not all(isinstance(p, Pin) for p in pins):
+            raise ValueError("pins must all be Pin")
+        object.__setattr__(self, "pins", pins)
 
     # -- serialization ------------------------------------------------------
 
@@ -224,7 +239,7 @@ class FemGuidePlan:
         return cls(cutting=cutting, base=base, pins=pins, **data)
 
     def to_json(self) -> str:
-        return json.dumps(self.to_dict(), indent=2, sort_keys=True)
+        return json.dumps(self.to_dict(), indent=2, sort_keys=True, allow_nan=False)
 
     @classmethod
     def from_json(cls, text: str) -> "FemGuidePlan":

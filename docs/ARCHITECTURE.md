@@ -192,8 +192,15 @@ Union of three parts, minus holes:
 Adjustable: segment angles/lengths (drag control points or type); extensions; slot
 width/depth; base outline (drag/add/delete control points or redraw); base thickness;
 bone-fit clearance (printer-dependent snug vs slip fit); pin add/remove, position,
-direction (auto surface-normal or free with angle readout), diameter, through/blind;
+direction (auto surface-normal or free with angle readout), diameter;
 whole-guide placement transform (drag + numeric nudge).
+Clarified 2026-10-21:
+- Pin holes are fixation holes that keep the guide still during the cuts, so they
+  always run through the guide into the bone (no blind holes).
+- The whole-guide placement transform moves the guide construct (cutting
+  structure) relative to the base fit. After every transform the connection to
+  the base and the slot cuts through it are recalculated; the base stays fitted
+  to the bone.
 
 ### 6.2 Glenoid Guide (TSA)
 

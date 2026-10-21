@@ -1,6 +1,7 @@
 """FemGuide plan model: structural checks and JSON round trip."""
 
 import dataclasses
+import json
 
 import numpy as np
 import pytest
@@ -65,12 +66,41 @@ def test_base_needs_three_points():
         BaseParams(outline_points=((0, 0, 0), (1, 0, 0)))
 
 
-def test_pin_direction_normalised_and_blind_not_supported():
+def test_pin_direction_normalised():
     assert Pin(position=(0, 0, 0), direction=(0, 0, 5)).direction == (0.0, 0.0, 1.0)
     with pytest.raises(ValueError):
         Pin(position=(0, 0, 0), direction=(0, 0, 0))
-    with pytest.raises(NotImplementedError):
-        Pin(position=(0, 0, 0), through=False)
+
+
+def test_unit_pin_directions_round_trip_bit_exact():
+    rng = np.random.default_rng(1)
+    for _ in range(500):
+        d = rng.normal(size=3)
+        pin = Pin(position=(1.0, 2.0, 3.0), direction=tuple(d))
+        again = Pin(**json.loads(json.dumps(dataclasses.asdict(pin))))
+        assert again == pin
+
+
+@pytest.mark.parametrize("bad", [
+    dict(angles_deg=(float("nan"),), lengths_mm=(5,)),
+    dict(angles_deg=(float("inf"),), lengths_mm=(5,)),
+    dict(angles_deg=(True,), lengths_mm=(5,)),
+    dict(angles_deg=("1",), lengths_mm=(5,)),
+    dict(angles_deg=(0,), lengths_mm=(5,), placement=(1, 0, 0, float("nan"),
+                                                       0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)),
+])
+def test_non_finite_and_non_numeric_inputs_rejected(bad):
+    with pytest.raises(ValueError):
+        CuttingParams(**bad)
+
+
+@pytest.mark.parametrize("field,value", [
+    ("case_id", 5), ("case_id", "  "), ("case_id", ["x"]),
+    ("bone_sha256", "abc"), ("schema_version", True),
+])
+def test_plan_fields_are_strictly_typed(plan, field, value):
+    with pytest.raises(ValueError):
+        dataclasses.replace(plan, **{field: value})
 
 
 def test_unknown_schema_version_rejected(plan):

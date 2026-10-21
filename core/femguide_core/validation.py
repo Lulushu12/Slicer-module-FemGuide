@@ -55,6 +55,9 @@ class ValidationReport:
     def warnings(self) -> List[Finding]:
         return [f for f in self.findings if f.severity is Severity.WARN]
 
+    def blocks_with(self, code: str) -> bool:
+        return any(f.code == code for f in self.blocks)
+
     def unacknowledged(self, acknowledged: Iterable[str] = ()) -> List[Finding]:
         """Warnings not covered by the acknowledged codes."""
         acked = set(acknowledged)

@@ -26,13 +26,13 @@ def test_walls_volume_and_closed_ends():
     assert walls.volume == pytest.approx((S + 2 * W) * (L + 2 * W) * D, rel=1e-9)
 
 
-def test_slot_is_centred_on_cut_line_and_reaches_bone():
+def test_slot_is_centred_and_open_along_the_blade_path():
     slot = cutting_solids(straight()).slot
     (x0, y0, z0), (x1, y1, z1) = slot.bounds
     assert (y0, y1) == pytest.approx((-S / 2, S / 2))
     assert (x0, x1) == pytest.approx((0.0, L))
-    assert z1 == pytest.approx(D / 2 + 1.0)       # just past the outer face
-    assert z0 < -D / 2 - 40.0                     # far past the bone side
+    # The slot is the blade's whole path: far past the walls both ways.
+    assert z0 < -100.0 and z1 > 100.0
 
 
 def test_slot_is_captured_inside_walls():
