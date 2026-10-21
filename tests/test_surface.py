@@ -17,7 +17,7 @@ from femguide_core.geometry.surface import (
     molded_base,
 )
 from femguide_core.geometry.repair import is_manifold_solid, repair
-from femguide_core.geometry.booleans import difference
+from femguide_core.geometry.booleans import difference, to_manifold
 from femguide_core.geometry.primitives import paired_cylinders
 
 RADIUS = 20.0
@@ -263,3 +263,22 @@ def test_molded_base_after_repair_of_dirty_segmentation(dirty_femur_like):
     assert is_manifold_solid(base)
     assert base.is_watertight
     assert base.volume > 0.0
+
+
+def test_molded_base_never_enters_noisy_bone(dense_dirty_femur):
+    """Regression: on dense noisy bone, bumps rose through the base's
+    displaced underside (0.13 mm^3 inside the bone); the base is now cut
+    back against the bone itself and its clearance-shifted copy."""
+    from manifold3d import Manifold, OpType
+
+    bone = dense_dirty_femur
+    centre = np.array([34.0, 0.0, 70.0])  # outer face of the femoral head
+    t = np.linspace(0, 2 * np.pi, 24, endpoint=False)
+    ring = centre + 11.0 * np.column_stack([np.zeros_like(t), np.cos(t), np.sin(t)])
+    outline = snap_points_to_surface(bone, ring)
+    base = molded_base(bone, outline, thickness=3.0, clearance=0.4)
+    assert is_manifold_solid(base)
+    assert len(to_manifold(base).decompose()) == 1
+    inside = Manifold.batch_boolean([to_manifold(base), to_manifold(bone)],
+                                    OpType.Intersect).volume()
+    assert inside < 1e-6

@@ -82,3 +82,22 @@ def dirty_sphere(clean_sphere, rng) -> trimesh.Trimesh:
 @pytest.fixture
 def dirty_femur_like(clean_femur_like, rng) -> trimesh.Trimesh:
     return _make_dirty(clean_femur_like, rng)
+
+
+@pytest.fixture(scope="session")
+def dense_dirty_femur():
+    """Segmentation-density (3 mm edges, ~80k faces) noisy femur, repaired.
+
+    Dense enough that surface noise forms bumps and local overhangs, which
+    the coarse fixtures above are too smooth to show."""
+    from femguide_core.geometry import repair
+
+    shaft = trimesh.creation.capsule(radius=14.0, height=120.0, count=[48, 48])
+    head = trimesh.creation.icosphere(subdivisions=3, radius=22.0)
+    head.apply_translation([12.0, 0.0, 70.0])
+    femur = trimesh.util.concatenate([shaft, head])
+    femur.merge_vertices()
+    femur = femur.subdivide_to_size(max_edge=3.0)
+    repaired, report = repair(_make_dirty(femur, np.random.default_rng(7)))
+    assert report.is_manifold_solid
+    return repaired

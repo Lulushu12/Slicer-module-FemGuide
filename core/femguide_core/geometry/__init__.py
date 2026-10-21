@@ -37,6 +37,7 @@ from femguide_core.geometry.booleans import (
     union,
     difference,
     intersection,
+    remove_small_bodies,
 )
 from femguide_core.geometry.offset import offset_solid
 from femguide_core.geometry.split import split_by_plane
@@ -72,6 +73,7 @@ __all__ = [
     "union",
     "difference",
     "intersection",
+    "remove_small_bodies",
     "offset_solid",
     "split_by_plane",
     # layer 3

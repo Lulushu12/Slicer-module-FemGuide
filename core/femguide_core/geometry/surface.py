@@ -776,6 +776,15 @@ def molded_base(
     so the guide seats uniquely. Pin holes are layer 2's job: subtract
     cylinders from the result with ``difference()``.
 
+    The displaced underside follows smoothed normals, so on a noisy bone
+    small bumps can rise above it. When ``mesh`` is a closed solid, the base
+    is therefore also cut back: never into the bone, and at least
+    ``clearance`` from it measured along the patch's mean normal (on surface
+    sloped at an angle a to that normal the perpendicular gap is
+    clearance * cos(a); under noise that overhangs relative to it the gap can
+    be smaller, but never negative). Dust left by the cut is dropped. A mesh
+    that is not a closed solid cannot be cut against and is used as is.
+
     ``mesh`` must be clean enough to snap against; segmentation output should
     go through ``repair()`` first (the dirty-input path is repair -> this).
     Raises ``ValueError`` for a curve with fewer than 3 points, an outline
@@ -783,4 +792,37 @@ def molded_base(
     """
     on_surface = project_curve_to_surface(mesh, curve_points)
     patch = extract_patch(mesh, on_surface)
-    return conforming_solid_from_patch(patch, thickness, clearance)
+    base = conforming_solid_from_patch(patch, thickness, clearance)
+    return _keep_clear_of_bone(base, mesh, patch, clearance)
+
+
+# Bodies smaller than this (mm^3) left over after trimming are dust.
+DUST_MM3 = 0.05
+
+
+def _keep_clear_of_bone(base, bone, patch, clearance) -> trimesh.Trimesh:
+    """Cut away base material inside ``bone`` or closer than ``clearance`` to
+    it along the patch's mean outward normal (no-op if ``bone`` is not a
+    closed solid)."""
+    from femguide_core.geometry.booleans import (
+        NonManifoldError,
+        difference,
+        intersection,
+        remove_small_bodies,
+    )
+
+    normal = (patch.face_normals * patch.area_faces[:, None]).sum(axis=0)
+    length = float(np.linalg.norm(normal))
+    if length < 1e-12:
+        return base
+    lo, hi = base.bounds
+    margin = 2.0 + abs(clearance)
+    try:
+        crop = intersection(bone, trimesh.creation.box(bounds=(lo - margin, hi + margin)))
+        if len(crop.faces) == 0:
+            return base
+        moved = crop.copy()
+        moved.apply_translation(normal / length * clearance)
+        return remove_small_bodies(difference(base, [crop, moved]), DUST_MM3)
+    except NonManifoldError:
+        return base

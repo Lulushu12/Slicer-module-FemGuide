@@ -137,3 +137,18 @@ def intersection(a: trimesh.Trimesh, b: trimesh.Trimesh) -> trimesh.Trimesh:
     """
     solids = [to_manifold(a, "a"), to_manifold(b, "b")]
     return from_manifold(Manifold.batch_boolean(solids, OpType.Intersect))
+
+
+def remove_small_bodies(mesh: trimesh.Trimesh, min_volume: float) -> trimesh.Trimesh:
+    """Drop disconnected bodies smaller than ``min_volume`` (the dust that
+    trimming a solid against a noisy surface can leave behind). The input
+    must be a manifold solid; an empty mesh is returned unchanged."""
+    if len(mesh.faces) == 0:
+        return mesh
+    bodies = to_manifold(mesh).decompose()
+    if len(bodies) < 2:
+        return mesh
+    kept = [b for b in bodies if b.volume() >= min_volume]
+    if not kept:
+        kept = [max(bodies, key=lambda b: b.volume())]
+    return from_manifold(Manifold.batch_boolean(kept, OpType.Add))
