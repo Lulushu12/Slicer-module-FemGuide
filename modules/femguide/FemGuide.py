@@ -409,6 +409,7 @@ class FemGuideWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndCloseEvent, self.onSceneClosed)
         self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndImportEvent, self.onSceneImported)
+        self.addObserver(slicer.mrmlScene, slicer.mrmlScene.StartSaveEvent, self.onSceneAboutToBeSaved)
         self._tryRestore()
         self.goToStep(0)
 
@@ -561,6 +562,9 @@ class FemGuideWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.statusLabel.text = "Not applied: {}".format(exc)
             self._showPlan()
             return
+        # Store the plan in the scene right away, so a scene saved before
+        # the guide finishes rebuilding still has the latest plan.
+        self.logic.saveToParameterNode()
         self._showPlan()
         self._regenTimer.start()
 
@@ -857,6 +861,9 @@ class FemGuideWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def onSceneImported(self, caller, event):
         self._tryRestore()
 
+    def onSceneAboutToBeSaved(self, caller, event):
+        self.logic.saveToParameterNode()
+
     def cleanup(self):
         self.removeObservers()
         self._regenTimer.stop()
@@ -926,11 +933,16 @@ class FemGuideTest(ScriptedLoadableModuleTest):
         self.assertNotEqual(logic.session.plan, before)
         widget.undo()
 
-        # Save and reopen the plan from the parameter node.
-        logic.saveToParameterNode()
+        # Save the scene to a file right after an edit (before the guide has
+        # rebuilt), close it, and reopen it: the plan must come back exactly.
+        widget.onNudge("translate", 0, 1)
         saved = logic.session.plan
-        logic.session = None
-        self.assertTrue(logic.restoreFromParameterNode())
+        scenePath = os.path.join(tempfile.mkdtemp(), "case.mrb")
+        self.assertTrue(slicer.util.saveScene(scenePath))
+        slicer.mrmlScene.Clear(0)
+        self.assertIsNone(logic.session)
+        slicer.util.loadScene(scenePath)
+        self.assertIsNotNone(logic.session)
         self.assertEqual(logic.session.plan, saved)
 
         # Export.
