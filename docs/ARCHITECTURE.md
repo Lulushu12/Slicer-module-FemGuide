@@ -179,6 +179,10 @@ Union of three parts, minus holes:
    math). Slot width = **saw blade thickness + clearance**, an explicit named
    parameter (eventually per-blade from the instrument library), plus slot depth and
    per-segment start/end extensions.
+   Clarified 2026-10-21: the prototype's primary prism is the **slot** (the empty
+   space the blade passes through), not guide material. The commercial cutting
+   structure is walls of material around that slot, with the slot subtracted from
+   the final guide (base included) so the blade is captured and reaches bone.
 2. **Patient-specific base**: surgeon draws a closed outline directly on the 3D femur
    surface (Slicer closed-curve markups with surface snapping); enclosed patch is
    extracted and offset outward into a solid; underside is a negative of the patient's
@@ -304,6 +308,12 @@ Hospital):
 2. **App skeleton + full FemGuide.** SlicerCustomAppTemplate branded shell, stripped
    module set, installer out of CI. FemGuide rebuilt as clinician wizard per 6.1
    (note: now includes layers 2+3 work, larger than a naive port).
+   Sequenced (2026-10-21) as: **2a** headless FemGuide plan model, regeneration,
+   validation gate and traceable export in pure Python (CI-tested); **2b** the
+   clinician wizard as a scripted module in pinned stock Slicer; **2c** the
+   SlicerCAT branded shell and installer CI (Windows VM as build machine /
+   self-hosted runner). Module code is identical in stock Slicer and the custom
+   app (3.2), so this front-loads what surgeons judge without changing D1.
 3. **Licensing + updater.** Signed license files, entitlements, grace period;
    signed update packages, manual apply, offline USB path; implant/instrument
    library format defined.

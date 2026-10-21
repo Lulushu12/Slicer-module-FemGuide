@@ -12,5 +12,5 @@ Patient-specific, 3D-printable surgical guide planning. See
 - `tests/` - pytest suite for the geometry engine. Run with `pytest tests/`.
 - `docs/` - architecture plan and pinned versions.
 
-CI (GitHub Actions) runs the geometry tests on Python 3.9 (the pinned Slicer's
-Python) and 3.12.
+CI (GitHub Actions) runs the geometry tests on Python 3.12 (the pinned Slicer's
+Python) and 3.13.

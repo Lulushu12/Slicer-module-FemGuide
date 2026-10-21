@@ -10,9 +10,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 3.9 matches the Python shipped inside the pinned Slicer (see
-        # docs/PINNED_VERSIONS.md); 3.12 keeps us honest for the future.
-        python-version: ["3.9", "3.12"]
+        # 3.12 matches the Python shipped inside the pinned Slicer (see
+        # docs/PINNED_VERSIONS.md); 3.13 keeps us honest for the future.
+        python-version: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
