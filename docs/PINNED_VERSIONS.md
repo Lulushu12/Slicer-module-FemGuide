@@ -6,12 +6,16 @@ release tag and record its git revision below when the superbuild is set up.
 
 | Component | Pinned version | Notes |
 |-----------|----------------|-------|
-| 3D Slicer | 5.12.4 | Newest release tag at re-pin time (2026-10-21). Ships Python 3.12.10 and defaults to Qt 5.15 (Qt 6.8 optional). Exact source revision to be recorded at superbuild setup. |
+| 3D Slicer | 5.12.4 (revision 34645) | Official release build per download.slicer.org (verified 2026-10-21; Linux package SHA-512 `ac76c506...0cf76`). Ships Python 3.12.10, numpy 2.4.6, VTK 9.6.2; defaults to Qt 5.15 (Qt 6.8 optional). The superbuild must use this exact revision. |
 | Python (in-app) | 3.12 | Dictated by Slicer 5.12.4 (`SuperBuild/External_python.cmake`: 3.12.10). Core library requires >=3.12. |
 | Qt | 5.15 | Slicer 5.12 default. Qt 5 is past end of standard support; a move to Qt 6.8 (LTS) is a deliberate later decision once Slicer's Qt 6 build is proven for us. |
-| numpy | >=1.24 | Range, resolved and frozen per release at packaging. |
+| numpy | >=1.24 | Range, resolved and frozen per release at packaging. Inside Slicer the bundled numpy 2.4.6 is used. |
 | trimesh | >=4.0 | Mesh interchange type + surface queries. MIT license. |
 | manifold3d | >=2.5 | All booleans (D3). Apache-2.0 license. |
+
+trimesh and manifold3d are not bundled with Slicer; in stock Slicer the
+FemGuide module installs them into Slicer's Python on request (Phase 2b).
+The custom app (Phase 2c) bundles pinned versions instead.
 
 History:
 

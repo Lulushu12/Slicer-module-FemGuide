@@ -44,6 +44,7 @@ from femguide_core.geometry import (
     polyline_from_angles,
     safe_normalize,
     snap_points_to_surface,
+    surface_normal,
     to_manifold,
 )
 from femguide_core.validation import Severity, ValidationReport
@@ -167,8 +168,7 @@ def _check_pins(plan: FemGuidePlan, geometry: GuideGeometry, bone: trimesh.Trime
             report.add("PIN_NOT_ON_BONE", Severity.BLOCK,
                        "{} entry point is {:.2f} mm from the bone surface.".format(
                            label, np.linalg.norm(snapped[i] - position)))
-        nearest = int(np.argmin(np.linalg.norm(bone.triangles_center - snapped[i], axis=1)))
-        inward = -np.asarray(bone.face_normals[nearest], dtype=float)
+        inward = -surface_normal(bone, snapped[i])
         if float(np.dot(direction, inward)) <= 0.0:
             report.add("PIN_POINTS_OUT", Severity.BLOCK,
                        "{} points out of the bone instead of into it.".format(label))

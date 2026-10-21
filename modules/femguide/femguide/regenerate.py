@@ -24,6 +24,7 @@ from femguide_core.geometry import (
     molded_base,
     oriented_cylinder,
     remove_small_bodies,
+    surface_normal,
     union,
 )
 from femguide_core.geometry.surface import DUST_MM3
@@ -38,6 +39,7 @@ from femguide.plan import FemGuidePlan, Pin
 PIN_INTO_BONE_MM = 10.0
 PIN_OUT_OF_BONE_MM = 60.0
 _PIN_SECTIONS = 32
+_BASE_CACHE_SIZE = 8
 
 
 class BoneMismatchError(ValueError):
@@ -65,13 +67,11 @@ class GuideGeometry:
 
 
 def resolve_pin_direction(pin: Pin, bone: trimesh.Trimesh) -> np.ndarray:
-    """The pin's direction into the bone; for "auto", the inward normal of
-    the bone face nearest to the pin position."""
+    """The pin's direction into the bone; for "auto", the inward bone normal
+    at the pin position (averaged over nearby faces, see surface_normal)."""
     if pin.direction is not None:
         return np.array(pin.direction, dtype=float)
-    position = np.array(pin.position, dtype=float)
-    nearest = int(np.argmin(np.linalg.norm(bone.triangles_center - position, axis=1)))
-    return -np.asarray(bone.face_normals[nearest], dtype=float)
+    return -surface_normal(bone, pin.position)
 
 
 def pin_hole(pin: Pin, direction: np.ndarray, radius: float = None,
@@ -87,7 +87,15 @@ def pin_hole(pin: Pin, direction: np.ndarray, radius: float = None,
                              sections=_PIN_SECTIONS)
 
 
-def regenerate(plan: FemGuidePlan, bone: trimesh.Trimesh) -> GuideGeometry:
+def regenerate(plan: FemGuidePlan, bone: trimesh.Trimesh,
+               base_cache: Optional[Dict] = None) -> GuideGeometry:
+    """Build the guide for ``plan`` on ``bone`` from scratch.
+
+    ``base_cache`` (a dict the caller keeps between calls) skips rebuilding
+    the base when the bone and base inputs are unchanged, which keeps
+    interactive edits of the cutting structure and pins fast. Results are
+    identical with or without it.
+    """
     if mesh_sha256(bone) != plan.bone_sha256:
         raise BoneMismatchError(
             "bone mesh does not match the plan's bone_sha256; this plan was "
@@ -97,9 +105,17 @@ def regenerate(plan: FemGuidePlan, bone: trimesh.Trimesh) -> GuideGeometry:
     base = None
     if plan.base is not None:
         t0 = time.perf_counter()
-        base = molded_base(bone, np.array(plan.base.outline_points),
-                           thickness=plan.base.thickness_mm,
-                           clearance=plan.base.clearance_mm)
+        key = (plan.bone_sha256, plan.base)
+        if base_cache is not None and key in base_cache:
+            base = base_cache[key]
+        else:
+            base = molded_base(bone, np.array(plan.base.outline_points),
+                               thickness=plan.base.thickness_mm,
+                               clearance=plan.base.clearance_mm)
+            if base_cache is not None:
+                while len(base_cache) >= _BASE_CACHE_SIZE:
+                    base_cache.pop(next(iter(base_cache)))
+                base_cache[key] = base
         timings["base"] = time.perf_counter() - t0
 
     t0 = time.perf_counter()
