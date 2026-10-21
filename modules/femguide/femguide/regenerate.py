@@ -19,7 +19,14 @@ import numpy as np
 import trimesh
 
 from femguide_core.export import mesh_sha256
-from femguide_core.geometry import difference, molded_base, oriented_cylinder, union
+from femguide_core.geometry import (
+    difference,
+    molded_base,
+    oriented_cylinder,
+    remove_small_bodies,
+    union,
+)
+from femguide_core.geometry.surface import DUST_MM3
 
 from femguide.cutting import cutting_solids
 from femguide.plan import FemGuidePlan, Pin
@@ -47,6 +54,7 @@ class GuideGeometry:
     pin_directions: List[np.ndarray]
     polyline: np.ndarray
     placement: np.ndarray
+    extension_mm: float
     timings: Dict[str, float] = field(default_factory=dict)
 
     @property
@@ -86,10 +94,6 @@ def regenerate(plan: FemGuidePlan, bone: trimesh.Trimesh) -> GuideGeometry:
             "made on a different mesh (or the mesh was modified)")
     timings: Dict[str, float] = {}
 
-    t0 = time.perf_counter()
-    cutting = cutting_solids(plan.cutting)
-    timings["cutting_structure"] = time.perf_counter() - t0
-
     base = None
     if plan.base is not None:
         t0 = time.perf_counter()
@@ -98,16 +102,23 @@ def regenerate(plan: FemGuidePlan, bone: trimesh.Trimesh) -> GuideGeometry:
                            clearance=plan.base.clearance_mm)
         timings["base"] = time.perf_counter() - t0
 
+    t0 = time.perf_counter()
+    clearance = plan.base.clearance_mm if plan.base is not None else 0.0
+    cutting = cutting_solids(plan.cutting, bone=bone, bone_clearance_mm=clearance,
+                             base=base)
+    timings["cutting_structure"] = time.perf_counter() - t0
+
     directions = [resolve_pin_direction(p, bone) for p in plan.pins]
     holes = [pin_hole(p, d) for p, d in zip(plan.pins, directions)]
 
     t0 = time.perf_counter()
     material = union([cutting.walls] + ([base] if base is not None else []))
-    guide = difference(material, [cutting.slot] + holes)
+    # Zero-volume slivers from the subtraction are dust, not parts.
+    guide = remove_small_bodies(difference(material, [cutting.slot] + holes), DUST_MM3)
     timings["booleans"] = time.perf_counter() - t0
 
     return GuideGeometry(
         guide=guide, walls=cutting.walls, slot=cutting.slot, base=base,
         pin_holes=holes, pin_directions=directions, polyline=cutting.polyline,
-        placement=plan.cutting.placement_matrix,
+        placement=plan.cutting.placement_matrix, extension_mm=cutting.extension_mm,
         timings=timings)

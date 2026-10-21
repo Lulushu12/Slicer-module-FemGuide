@@ -34,20 +34,27 @@ def test_scenario_is_clean(plan, bone):
 
 # -- seating, connection, attachment ----------------------------------------
 
-def test_walls_into_bone_block(plan, bone):
-    found, _ = codes(with_cutting(plan, placement=translation(-6.3, -1.0, 22.0)), bone)
-    assert found == {"GUIDE_INTERSECTS_BONE"}
+def test_construct_pushed_into_bone_is_trimmed_not_blocked(plan, bone):
+    found, report = codes(with_cutting(plan, placement=translation(-6.3, -1.0, 22.0)), bone)
+    assert found == set()
+    assert report.metrics["bone_intrusion_mm3"] == 0.0
 
 
-def test_floating_cutting_structure_blocks(plan, bone):
-    found, _ = codes(with_cutting(plan, placement=translation(-6.3, -1.0, 40.0)), bone)
+def test_construct_off_the_bone_blocks(plan, bone):
+    found, _ = codes(with_cutting(plan, placement=translation(53.7, -1.0, 26.5)), bone)
     assert found == {"DISCONNECTED_PARTS"}
 
 
-def test_sliver_attachment_blocks(plan, bone):
-    found, report = codes(with_cutting(plan, placement=translation(-6.3, -1.0, 28.0)), bone)
+def test_weak_attachment_blocks(plan, bone):
+    found, report = codes(plan, bone, limits=ValidationLimits(min_attachment_mm3=1000.0))
     assert found == {"WEAK_ATTACHMENT"}
-    assert 0.0 < report.metrics["attachment_mm3"] < 30.0
+    assert 0.0 < report.metrics["attachment_mm3"] < 1000.0
+
+
+def test_tall_connection_warns(plan, bone):
+    found, report = codes(with_cutting(plan, placement=translation(-6.3, -1.0, 50.0)), bone)
+    assert found == {"TALL_CONNECTION"}
+    assert report.metrics["connection_mm"] > 15.0
 
 
 def test_open_bone_mesh_blocks(plan):
@@ -148,10 +155,8 @@ def test_wall_thickness_warn_then_block(plan, bone):
 
 
 def test_base_thickness_warn(plan, bone):
-    # Thinning the base lowers its top, and the walls stay where they were
-    # placed, so they now barely touch it: the attachment check fires too.
-    assert {"BASE_THIN", "WEAK_ATTACHMENT"} == codes(
-        with_base(plan, thickness_mm=1.5), bone)[0]
+    # Thinning the base lowers its top; auto-connect follows it down.
+    assert {"BASE_THIN"} == codes(with_base(plan, thickness_mm=1.5), bone)[0]
 
 
 def test_clearance_too_tight_warns(plan, bone):
@@ -166,9 +171,11 @@ def test_clearance_too_loose_warns(plan, bone):
 
 
 def test_negative_bone_clearance_blocks(plan, bone):
-    found, _ = codes(with_base(plan, clearance_mm=-0.2), bone)
-    # The base itself now cuts into the bone, so both checks fire.
-    assert found == {"BONE_INTERFERENCE", "GUIDE_INTERSECTS_BONE"}
+    found, report = codes(with_base(plan, clearance_mm=-0.2), bone)
+    # The base is kept out of the bone regardless, so the plan's stated
+    # interference is what blocks it.
+    assert found == {"BONE_INTERFERENCE"}
+    assert report.metrics["bone_intrusion_mm3"] == 0.0
 
 
 def test_missing_base_warns(plan, bone):

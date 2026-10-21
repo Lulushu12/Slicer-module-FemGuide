@@ -74,13 +74,17 @@ class CuttingParams:
     The polyline (``angles_deg`` / ``lengths_mm``, prototype math) is the
     planned cut line, drawn in its local z=0 plane; each segment defines one
     cut plane (the segment swept along local z, the blade's direction of
-    travel). The **slot** is the empty channel the blade passes through:
+    travel). Local -z points toward the bone: the walls auto-connect in that
+    direction. The **slot** is the empty channel the blade passes through:
     ``blade_thickness_mm + blade_clearance_mm`` wide, centred on the cut
-    line, open along the blade's entire path. ``slot_depth_mm`` is
-    how far along z the blade is guided (the guide's height there). Walls of
+    line, open along the blade's entire path. Walls of
     ``wall_thickness_mm`` surround the slot on both sides and close its two
-    outer ends. ``placement`` (row-major 4x4, rigid) maps the local frame
-    into bone coordinates.
+    outer ends; ``slot_depth_mm`` is the height of this placed wall block,
+    which is then automatically extended down to the bone and trimmed to the
+    bone-fit clearance (auto-connect). ``placement`` (row-major 4x4, rigid)
+    maps the local frame into bone coordinates; it is the whole-guide
+    placement transform, moving the cutting structure relative to the base
+    fit.
     """
 
     angles_deg: Tuple[float, ...]

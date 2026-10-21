@@ -200,7 +200,9 @@ Clarified 2026-10-21:
 - The whole-guide placement transform moves the guide construct (cutting
   structure) relative to the base fit. After every transform the connection to
   the base and the slot cuts through it are recalculated; the base stays fitted
-  to the bone.
+  to the bone. Implemented as auto-connect: the placed wall block is extended
+  down into the base (clipped to the base's footprint, so it never lands on
+  bone outside the drawn outline) and trimmed to the bone-fit clearance.
 
 ### 6.2 Glenoid Guide (TSA)
 

@@ -14,7 +14,12 @@ Hard blocks:
   less than the printable minimum of material around the hole.
 
 Warnings needing acknowledgement: thin walls, base or slot-pass gaps; blade
-or bone-fit clearance too tight or too loose; no patient-specific base.
+or bone-fit clearance too tight or too loose; no patient-specific base; a
+tall auto-connect extension (walls on stilts flex and cost cut accuracy).
+
+The walls auto-connect to the bone (see femguide.cutting), so wall material
+cannot intrude into the bone or float above it unless there is no bone under
+the walls at all; those checks remain as a safety net.
 
 The numeric limits are printer-, material- and instrument-dependent. The
 defaults below are placeholders to be replaced with values validated on the
@@ -73,6 +78,8 @@ class ValidationLimits:
     min_bone_clearance_mm: float = 0.2
     max_bone_clearance_mm: float = 1.0
     min_attachment_mm3: float = 30.0
+    # Tallest auto-connect extension below the placed wall block.
+    max_connection_mm: float = 15.0
     # How deep a fixation pin may go into the bone; the pin must not cross
     # the blade's path anywhere along that depth.
     pin_depth_in_bone_mm: float = 30.0
@@ -277,6 +284,14 @@ def validate(plan: FemGuidePlan, geometry: GuideGeometry, bone: trimesh.Trimesh,
                        "The cutting structure overlaps the base by only {:.1f} mm^3 "
                        "(minimum {:.1f}); it could break off.".format(
                            attachment, limits.min_attachment_mm3))
+
+    report.metrics["connection_mm"] = float(geometry.extension_mm)
+    if geometry.extension_mm > limits.max_connection_mm:
+        report.add("TALL_CONNECTION", Severity.WARN,
+                   "The walls stand {:.1f} mm above the bone on their automatic "
+                   "connection (recommended at most {:.1f} mm); move the cutting "
+                   "structure closer to the bone for a stiffer guide.".format(
+                       geometry.extension_mm, limits.max_connection_mm))
 
     # -- clearances ---------------------------------------------------------
     if c.blade_clearance_mm < limits.min_blade_clearance_mm:
