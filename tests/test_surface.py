@@ -27,7 +27,7 @@ CHORD_TOL = 0.3
 
 
 def _n_components(mesh: trimesh.Trimesh) -> int:
-    """Vertex-connectivity component count (pure python union-find — no
+    """Vertex-connectivity component count (pure python union-find; no
     scipy/networkx in the frozen dependency set, so no mesh.split here)."""
     parent = list(range(len(mesh.vertices)))
 
@@ -47,7 +47,7 @@ def _n_components(mesh: trimesh.Trimesh) -> int:
 
 
 def _latitude_circle(theta_deg: float, n_points: int = 24) -> np.ndarray:
-    """The circle x^2 + y^2 = (R sin theta)^2 at z = R cos theta — exactly on
+    """The circle x^2 + y^2 = (R sin theta)^2 at z = R cos theta; exactly on
     the analytic sphere, approximately on its triangulation."""
     theta = np.radians(theta_deg)
     phi = np.linspace(0.0, 2.0 * np.pi, n_points, endpoint=False)
@@ -70,7 +70,7 @@ def _fine_femur(clean_femur_like: trimesh.Trimesh) -> trimesh.Trimesh:
     resolution.
 
     trimesh's capsule builds the whole 120 mm cylindrical section as a single
-    band of 120 mm-tall triangles — an artifact of the synthetic fixture, far
+    band of 120 mm-tall triangles; an artifact of the synthetic fixture, far
     coarser than any segmented bone. extract_patch honestly cannot enclose an
     outline smaller than the local triangles, so refine to a max edge of 4 mm
     (real segmentation meshes are already at ~sub-mm/voxel resolution).
@@ -172,7 +172,7 @@ def test_extract_patch_rejects_too_few_points(clean_sphere):
 def test_extract_patch_escape_raises(clean_sphere):
     # A near-degenerate 3-point speck: its projected outline is far smaller
     # than the local triangles, so no closed barrier band forms and the flood
-    # fill escapes — extract_patch must say so, deterministically.
+    # fill escapes; extract_patch must say so, deterministically.
     tiny = np.array([[0.1, 0.0, 25.0], [0.0, 0.1, 25.0], [-0.1, 0.0, 25.0]])
     with pytest.raises(ValueError, match="did not close"):
         extract_patch(clean_sphere, tiny)
@@ -230,7 +230,7 @@ def test_commercial_workflow_base_minus_pins(clean_sphere):
     assert is_manifold_solid(base)
 
     # Two pins through the polar cap base: anchor above the pole, axes along
-    # +x, one either side of the polyline plane — both pierce the shell,
+    # +x, one either side of the polyline plane; both pierce the shell,
     # which spans radii ~20.5..23.5 around the pole.
     pins = paired_cylinders(
         np.array([[-10.0, 0.0, 22.2], [10.0, 0.0, 22.2]]),

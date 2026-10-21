@@ -1,6 +1,6 @@
 """Mesh booleans on manifold3d (layer 2, frozen decision D3).
 
-All boolean operations run through ``manifold3d.Manifold`` — never VTK
+All boolean operations run through ``manifold3d.Manifold``; never VTK
 booleans on segmented anatomy. Inputs are validated strictly: anything that
 manifold3d rejects as a non-manifold or empty mesh raises
 :class:`NonManifoldError`. There is deliberately **no silent auto-repair**
@@ -32,7 +32,7 @@ def to_manifold(mesh: trimesh.Trimesh, name: str = "mesh") -> Manifold:
 
     Raises :class:`NonManifoldError` if the mesh is empty, is not an oriented
     2-manifold, or fails conversion for any other reason. No repair is
-    attempted here — run ``repair()`` from
+    attempted here; run ``repair()`` from
     :mod:`femguide_core.geometry.repair` on segmentation output first.
 
     ``name`` labels the offending input in the error message (e.g. ``"a"``,
@@ -98,7 +98,7 @@ def union(
 
     Accepts a single mesh (returned round-tripped through manifold3d) or a
     sequence of meshes. Every input is validated with :func:`to_manifold` and
-    a :class:`NonManifoldError` is raised for invalid ones — there is no
+    a :class:`NonManifoldError` is raised for invalid ones; there is no
     silent auto-repair; call ``repair()`` explicitly on dirty input first.
     """
     items = _as_sequence(meshes)
@@ -118,7 +118,7 @@ def difference(
     subtracted in one batch operation (e.g. subtracting several pin cylinders
     from a molded base at once). Inputs are validated with
     :func:`to_manifold`; dirty segmentation meshes must go through
-    ``repair()`` explicitly first — no silent auto-repair happens here.
+    ``repair()`` explicitly first; no silent auto-repair happens here.
     """
     tools = _as_sequence(b)
     if not tools:
@@ -132,7 +132,7 @@ def intersection(a: trimesh.Trimesh, b: trimesh.Trimesh) -> trimesh.Trimesh:
     """Boolean intersection of two solids via manifold3d.
 
     Inputs are validated with :func:`to_manifold` and invalid ones raise
-    :class:`NonManifoldError` — no silent auto-repair; the repair pass is
+    :class:`NonManifoldError`; no silent auto-repair; the repair pass is
     explicit at call sites. Non-overlapping inputs yield an empty mesh.
     """
     solids = [to_manifold(a, "a"), to_manifold(b, "b")]

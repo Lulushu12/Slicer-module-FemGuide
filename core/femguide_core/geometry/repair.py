@@ -3,7 +3,7 @@
 Segmentation output is assumed dirty: duplicated vertices, degenerate and
 duplicate faces, punched holes, small disconnected debris. Per frozen decision
 D3 every boolean runs on manifold3d, which rejects anything that is not an
-oriented 2-manifold — so :func:`repair` is the mandatory pass that turns
+oriented 2-manifold; so :func:`repair` is the mandatory pass that turns
 segmentation-grade meshes into manifold solids before any boolean.
 
 Everything here is numpy + trimesh + manifold3d only. The pipeline avoids
@@ -245,15 +245,15 @@ def repair(
     1. Copy the input (never modified in place).
     2. Merge duplicate vertices; remove degenerate and duplicate faces and
        unreferenced vertices.
-    3. If ``keep_largest_component``: discard tiny disconnected debris —
+    3. If ``keep_largest_component``: discard tiny disconnected debris:
        components whose bounding-box diagonal is below 10% of the largest
        component's (components with fewer than 8 faces are always debris).
        Size is judged geometrically, never by face count, so a coarsely
        meshed but physically large shell (a femoral head next to a densely
        meshed shaft) survives while far-away segmentation specks do not.
     4. Make triangle winding consistent (``trimesh.repair.fix_winding``).
-    5. Fill holes: every closed boundary loop is capped — triangular holes get
-       the missing triangle, larger loops a centroid fan — then the cleanup of
+    5. Fill holes: every closed boundary loop is capped (triangular holes get
+       the missing triangle, larger loops a centroid fan), then the cleanup of
        step 2 runs again and winding is re-fixed.
     6. Optional decimation to about ``target_faces`` using trimesh's quadric
        decimation when its backend (``fast_simplification``) is installed;
@@ -263,7 +263,7 @@ def repair(
 
     Returns ``(repaired_mesh, RepairReport)``. If the result still is not a
     manifold solid after all steps, it is returned anyway with the report
-    saying so — callers decide what to do.
+    saying so; callers decide what to do.
     """
     report = RepairReport(
         input_vertices=len(mesh.vertices), input_faces=len(mesh.faces)

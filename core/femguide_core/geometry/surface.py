@@ -3,14 +3,14 @@
 The "draw footprint on bone -> conforming base -> subtract pin cylinders"
 pipeline shared by FemGuide (6.1 item 2) and Glenoid Guide (6.2):
 
-1. :func:`snap_points_to_surface` — closest points on a mesh surface.
-2. :func:`project_curve_to_surface` — a drawn closed curve, densified and
+1. :func:`snap_points_to_surface`: closest points on a mesh surface.
+2. :func:`project_curve_to_surface`: a drawn closed curve, densified and
    snapped onto the bone surface.
-3. :func:`extract_patch` — the sub-surface enclosed by that curve (flood fill
+3. :func:`extract_patch`: the sub-surface enclosed by that curve (flood fill
    behind a barrier band of faces near the curve).
-4. :func:`conforming_solid_from_patch` — the open patch offset into a
+4. :func:`conforming_solid_from_patch`: the open patch offset into a
    watertight "molded base" solid whose underside is a negative of the bone.
-5. :func:`molded_base` — the full pipeline in one call; pin cylinders are then
+5. :func:`molded_base`: the full pipeline in one call; pin cylinders are then
    subtracted by layer 2 (:func:`femguide_core.geometry.booleans.difference`).
 
 Pure numpy + trimesh + manifold3d. The frozen dependency set has no scipy /
@@ -45,11 +45,11 @@ _PAIR_BUDGET = 1_000_000
 _BARRIER_EDGE_FACTOR = 0.5
 
 # extract_patch declares the flood fill "escaped" past this fraction of all
-# faces — an enclosed footprint is always far smaller than the whole bone.
+# faces; an enclosed footprint is always far smaller than the whole bone.
 _ESCAPE_FRACTION = 0.6
 
 # Laplacian smoothing rounds for displacement normals (same idea as
-# offset.py's _smoothed_vertex_normals, duplicated locally on purpose — no
+# offset.py's _smoothed_vertex_normals, duplicated locally on purpose; no
 # imports of private helpers across modules).
 _SMOOTHING_ROUNDS = 2
 
@@ -88,7 +88,7 @@ def _paired_closest(
         return num / np.where(np.abs(den) < 1e-30, 1.0, den)
 
     # Start from the interior (barycentric) candidate, then overwrite with
-    # edge candidates, then vertex candidates — later writes win, so the
+    # edge candidates, then vertex candidates; later writes win, so the
     # highest-priority (vertex) regions are applied last.
     denom = _safe_div(np.ones_like(va), va + vb + vc)
     v = (vb * denom)[:, None]
@@ -249,7 +249,7 @@ def snap_points_to_surface(mesh: trimesh.Trimesh, points) -> np.ndarray:
 
     ``points`` is (N, 3) array-like (a single (3,) point is accepted and
     treated as N=1). Returns the (N, 3) array of exact closest points on the
-    triangulated surface — for a point already on the surface this is the
+    triangulated surface; for a point already on the surface this is the
     point itself. Implemented as a chunked brute-force point-to-triangle
     projection (see module docstring: no scipy/rtree available for
     ``trimesh.proximity``), which is exact and fast enough at the 10^3–10^5
@@ -275,7 +275,7 @@ def project_curve_to_surface(
 ) -> np.ndarray:
     """Project a CLOSED polyline onto the mesh surface as a dense loop.
 
-    ``curve_points`` (N, 3) is treated as a closed polyline — the last point
+    ``curve_points`` (N, 3) is treated as a closed polyline; the last point
     connects back to the first. Each of the N segments is densified with
     ``samples_per_segment`` linearly interpolated samples (the segment start
     included, its end excluded, so nothing is duplicated), and every sample is
@@ -378,10 +378,10 @@ def _tidy_patch_faces(
     all confined to the barrier band around the outline:
 
     - micro-holes and concave notches (a face surrounded by kept faces that
-      the inside-side test misclassified) — filled: a barrier face with two
+      the inside-side test misclassified): filled: a barrier face with two
       or more kept edge-neighbors is added;
-    - spurs (a kept barrier face hanging on by a single edge) — pruned;
-    - bowtie/pinch boundary vertices (two lobes touching at one vertex) —
+    - spurs (a kept barrier face hanging on by a single edge): pruned;
+    - bowtie/pinch boundary vertices (two lobes touching at one vertex):
       resolved by keeping only the largest edge-connected fan of kept faces
       around the vertex (deterministic tie-break by lowest face index).
 
@@ -477,13 +477,13 @@ def extract_patch(mesh: trimesh.Trimesh, closed_curve_points) -> trimesh.Trimesh
        barrier tolerance so the band has no gaps).
     2. BARRIER faces: every face whose minimum distance to any dense curve
        sample is below a tolerance derived from the mesh's local edge length
-       (``0.5 * median edge length`` — every face the curve actually crosses
+       (``0.5 * median edge length``; every face the curve actually crosses
        is at distance ~0 and always included; the factor only controls the
        sideways bleed of the band).
     3. Interior seed: the dense samples' centroid snapped to the surface;
        the seed face is the nearest non-barrier face to that point.
     4. Flood fill from the seed face across shared edges (adjacency built
-       locally from sorted edge pairs — no scipy/networkx), never entering
+       locally from sorted edge pairs; no scipy/networkx), never entering
        barrier faces.
     5. The patch reaches back out to the drawn outline: barrier faces whose
        centroid lies on the INSIDE of the curve are added. The side of a
@@ -493,7 +493,7 @@ def extract_patch(mesh: trimesh.Trimesh, closed_curve_points) -> trimesh.Trimesh
        calibration is degenerate the fallback is the barrier faces
        edge-adjacent to the flooded set.)
     6. The band is tidied (micro-holes and notches filled, spur faces
-       pruned, bowtie vertices split — see :func:`_tidy_patch_faces`) and
+       pruned, bowtie vertices split; see :func:`_tidy_patch_faces`) and
        only the connected component containing the seed face is kept,
        discarding inside-side barrier faces picked up elsewhere (e.g. on the
        far side of a thin bone).
@@ -501,12 +501,12 @@ def extract_patch(mesh: trimesh.Trimesh, closed_curve_points) -> trimesh.Trimesh
     Returns a new ``trimesh.Trimesh`` (``process=False``, unreferenced
     vertices dropped). Raises ``ValueError`` when the curve has fewer than 3
     points, or when the flood fill escapes (fills more than 60% of the mesh
-    faces), which means the projected curve did not close into a barrier —
+    faces), which means the projected curve did not close into a barrier:
     e.g. a degenerate or self-crossing outline, or one smaller than the local
     triangle size.
 
     Honest limitation: the patch boundary is ragged at mesh-triangle
-    resolution — faces are kept or dropped whole, so the outline is honored
+    resolution; faces are kept or dropped whole, so the outline is honored
     to within about one triangle, not cut exactly along the curve. That is
     acceptable at segmentation resolution (triangles far smaller than the
     footprint); the upgrade path is exact edge splitting along the projected
@@ -523,7 +523,7 @@ def extract_patch(mesh: trimesh.Trimesh, closed_curve_points) -> trimesh.Trimesh
 
     tolerance = _BARRIER_EDGE_FACTOR * float(np.median(mesh.edges_unique_length))
 
-    # Densify so consecutive samples are spaced well below the tolerance —
+    # Densify so consecutive samples are spaced well below the tolerance:
     # otherwise the barrier band could have gaps between samples.
     seg_lengths = np.linalg.norm(np.roll(pts, -1, axis=0) - pts, axis=1)
     max_seg = float(seg_lengths.max()) if len(seg_lengths) else 0.0
@@ -563,7 +563,7 @@ def extract_patch(mesh: trimesh.Trimesh, closed_curve_points) -> trimesh.Trimesh
         raise ValueError(
             "flood fill escaped the drawn outline (filled {} of {} faces, "
             "over the {:.0%} limit): the projected curve did not close into "
-            "a barrier band on the surface — the outline is degenerate, "
+            "a barrier band on the surface; the outline is degenerate, "
             "self-crossing, or smaller than the local triangle size".format(
                 int(flooded.sum()), len(mesh.faces), _ESCAPE_FRACTION
             )
@@ -572,7 +572,7 @@ def extract_patch(mesh: trimesh.Trimesh, closed_curve_points) -> trimesh.Trimesh
     # Reach back out to the outline: add the barrier faces whose centroid
     # lies on the inside of the curve. Whole faces are kept or dropped by
     # their centroid, so the boundary jitters about +-half a face around the
-    # curve but is unbiased — the flooded set alone would stop a full
+    # curve but is unbiased; the flooded set alone would stop a full
     # barrier-band-width short of the outline.
     keep = flooded.copy()
     barrier_idx = np.flatnonzero(barrier)
@@ -591,7 +591,7 @@ def extract_patch(mesh: trimesh.Trimesh, closed_curve_points) -> trimesh.Trimesh
         keep[pairs[barrier[pairs[:, 1]] & flooded[pairs[:, 0]], 1]] = True
 
     # Tidy the ragged band (fill micro-holes/notches, prune spurs, split
-    # bowtie vertices) and keep only the seed-connected component —
+    # bowtie vertices) and keep only the seed-connected component:
     # inside-side barrier faces picked up away from the footprint (thin
     # bone, folds) are not part of the patch.
     keep = _tidy_patch_faces(mesh, pairs, keep, barrier, seed_face)
@@ -693,9 +693,9 @@ def conforming_solid_from_patch(
     Construction:
 
     - inner surface: the patch vertices displaced by ``clearance`` along
-      smoothed outward vertex normals (the bone-fit clearance — printer
+      smoothed outward vertex normals (the bone-fit clearance; printer
       dependent snug vs slip fit, architecture 6.1), faces inverted so the
-      underside — the negative of the bone — points back at the bone;
+      underside (the negative of the bone) points back at the bone;
     - outer surface: the same vertices displaced by ``clearance + thickness``,
       original winding kept;
     - side walls: each boundary loop stitched between inner and outer with a
@@ -705,7 +705,7 @@ def conforming_solid_from_patch(
     :func:`~femguide_core.geometry.repair.repair` pass and must come out as a
     manifold solid; otherwise ``ValueError`` is raised with the repair report
     in the message (typical cause: a patch so ragged or so thick relative to
-    local curvature that the offset self-intersects — see offset.py's
+    local curvature that the offset self-intersects; see offset.py's
     limitation note, which applies to this vertex-normal displacement too).
 
     ``thickness`` must be > 0; ``clearance`` may be 0 (or negative for an
@@ -758,6 +758,23 @@ def conforming_solid_from_patch(
             "limitation).\n{}".format(thickness, clearance, report)
         )
     return repaired
+
+
+def surface_normal(mesh: trimesh.Trimesh, point, radius: float = 5.0) -> np.ndarray:
+    """Outward surface normal at ``point``, area-averaged over the faces whose
+    centres lie within ``radius`` (the nearest face if none do), so that
+    segmentation noise does not tip it."""
+    point = np.asarray(point, dtype=np.float64)
+    centers = mesh.triangles_center
+    dist = np.linalg.norm(centers - point, axis=1)
+    near = dist < radius
+    if not near.any():
+        near = dist == dist.min()
+    weighted = (mesh.face_normals[near] * mesh.area_faces[near, None]).sum(axis=0)
+    length = float(np.linalg.norm(weighted))
+    if length < 1e-12:
+        return np.asarray(mesh.face_normals[int(np.argmin(dist))], dtype=np.float64)
+    return weighted / length
 
 
 def molded_base(

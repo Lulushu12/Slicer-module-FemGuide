@@ -2,7 +2,7 @@
 
 Implementation: displace every vertex along a smoothed vertex normal by a
 signed distance. This is the simple, fast approach and its limitation is
-stated honestly in :func:`offset_solid`'s docstring — an SDF / voxel-based
+stated honestly in :func:`offset_solid`'s docstring; an SDF / voxel-based
 offset is the upgrade path if guide flanges ever need large offsets.
 """
 
@@ -74,7 +74,7 @@ def offset_solid(mesh: trimesh.Trimesh, distance: float) -> trimesh.Trimesh:
         raise NonManifoldError(
             "offset_solid produced a non-manifold result for distance {}; "
             "the offset is too large for the local curvature of the input "
-            "(vertex-normal displacement limitation — see docstring)".format(
+            "(vertex-normal displacement limitation; see docstring)".format(
                 distance
             )
         )

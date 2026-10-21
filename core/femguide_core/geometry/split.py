@@ -30,7 +30,7 @@ def split_by_plane(
 
     The input is validated via ``to_manifold`` and raises
     :class:`~femguide_core.geometry.booleans.NonManifoldError` for
-    non-manifold input — run ``repair()`` on segmentation output first.
+    non-manifold input; run ``repair()`` on segmentation output first.
 
     Parameters
     ----------

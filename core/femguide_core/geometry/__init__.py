@@ -47,6 +47,7 @@ from femguide_core.geometry.surface import (
     extract_patch,
     conforming_solid_from_patch,
     molded_base,
+    surface_normal,
 )
 from femguide_core.geometry.frames import (
     frame_from_three_points,
@@ -82,6 +83,7 @@ __all__ = [
     "extract_patch",
     "conforming_solid_from_patch",
     "molded_base",
+    "surface_normal",
     "frame_from_three_points",
     "frame_from_origin_and_axes",
 ]
