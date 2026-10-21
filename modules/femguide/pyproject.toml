@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "femguide-module"
+version = "0.1.0"
+description = "FemGuide module logic: plan model, regeneration, validation, export (no Slicer imports)"
+requires-python = ">=3.12"
+dependencies = [
+    "femguide-core",
+]
+
+[tool.setuptools.packages.find]
+include = ["femguide*"]

@@ -19,7 +19,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-      - name: Install core library
-        run: pip install -e "./core[dev]"
-      - name: Run geometry tests
+      - name: Install core library and FemGuide module logic
+        run: pip install -e "./core[dev]" -e ./modules/femguide
+      - name: Run tests
         run: pytest tests/ -v
